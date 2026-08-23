@@ -1,0 +1,17 @@
+{
+  "name": "종교개혁 투어 도슨트",
+  "short_name": "종교개혁투어",
+  "description": "유럽 종교개혁 투어 16개 방문지 해설 — 백지도, 이동 경로, 책 원문 발췌",
+  "lang": "ko",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f6f1e7",
+  "theme_color": "#f6f1e7",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
