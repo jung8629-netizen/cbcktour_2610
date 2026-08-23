@@ -6,10 +6,11 @@
 <title>종교개혁 투어 · 방문지 해설</title>
 <meta name="robots" content="noindex, nofollow, noarchive">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#f6f1e7">
+<meta name="theme-color" content="#f6f1e7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#181613" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="종교개혁투어">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -66,15 +67,16 @@ main{position:absolute;inset:52px 0 0 0;overflow:hidden}
   vector-effect:non-scaling-stroke;opacity:.85}
 .route-done{fill:none;stroke:var(--accent);stroke-width:4;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .pin{cursor:pointer}
+.pin circle.hit{fill:transparent;stroke:none}
 .pin circle.dot{fill:var(--accent);stroke:#fff;stroke-width:2.2;vector-effect:non-scaling-stroke}
 .pin.link circle.dot{fill:var(--ink3)}
 .pin.sel circle.dot{fill:var(--accent2);stroke:var(--gold);stroke-width:3.4}
-.pin text.num{fill:#fff;font-size:11px;font-weight:800;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.pin text.num{fill:#fff;font-weight:800;text-anchor:middle;dominant-baseline:central;pointer-events:none}
 .lbl{cursor:pointer}
-.lbl rect{fill:var(--gold);stroke:var(--gold-d);stroke-width:1;rx:4}
-.pin.link + .lbl rect{fill:var(--chip);stroke:var(--line2)}
-.lbl text{font-size:12.5px;font-weight:800;fill:#221c08;dominant-baseline:central;pointer-events:none}
-.pin.link + .lbl text{fill:var(--ink2)}
+.lbl rect{fill:var(--gold);stroke:var(--gold-d);stroke-width:1}
+.lbl.link rect{fill:var(--chip);stroke:var(--line2)}
+.lbl text{font-weight:800;fill:#221c08;dominant-baseline:central;pointer-events:none}
+.lbl.link text{fill:var(--ink2)}
 .lbl line{stroke:var(--line2);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
 .mapctl{position:absolute;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:20;
   display:flex;flex-direction:column;gap:6px}
@@ -87,6 +89,9 @@ main{position:absolute;inset:52px 0 0 0;overflow:hidden}
 .legend i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);margin-right:5px;vertical-align:1px}
 .legend i.g{background:var(--ink3)}
 #gPins.nolbl .lbl{display:none}
+#gPins.nolbl .lbl.peek{display:inline}
+.lbl.peek rect{stroke:var(--accent);stroke-width:2.4}
+.lbl.peek text{fill:#221c08}
 #chips{position:absolute;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom));z-index:22;
   display:none;gap:7px;overflow-x:auto;padding:2px 12px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 #chips::-webkit-scrollbar{display:none}
@@ -321,15 +326,40 @@ for(let i=0;i<pts.length-1;i++){
   arrows.push({e:el("path",{d:"M-6,-4.6L6,0L-6,4.6Z",fill:"var(--ink)","fill-opacity":".5"},gRoute),mx,my,ang});
 }
 
+let LBLHIDDEN=false, PEEK=0;
 const PIN={};
 for(const p of P){
   const g=el("g",{class:p.mode==="link"?"pin link":"pin","data-n":p.n},gPins);
+  const hit=el("circle",{cx:p.mx,cy:p.my,r:20,class:"hit"},g);
   const dot=el("circle",{cx:p.mx,cy:p.my,r:11,class:"dot"},g);
   const num=el("text",{x:p.mx,y:p.my,class:"num"},g); num.textContent=p.n;
-  const lg=el("g",{class:"lbl","data-n":p.n},gPins);
+  const lg=el("g",{class:"lbl"+(p.mode==="link"?" link":""),"data-n":p.n},gPins);
   const line=el("line",{},lg), rect=el("rect",{rx:4},lg), txt=el("text",{},lg);
   txt.textContent=p.n+") "+p.ko;
-  PIN[p.n]={p,g,dot,num,lg,line,rect,txt,tw:(p.n+") "+p.ko).length};
+  PIN[p.n]={p,g,hit,dot,num,lg,line,rect,txt,dir:null,emw:0};
+}
+
+function clearPeek(){ if(PEEK&&PIN[PEEK]){ PIN[PEEK].lg.classList.remove("peek"); PIN[PEEK].dir=null; } PEEK=0; }
+function setPeek(n){
+  clearPeek(); PEEK=n;
+  const o=PIN[n], p=o.p;
+  const fx=(p.mx-VB.x)/VB.w, fy=(p.my-VB.y)/VB.h;   // 화면 안에서의 위치 비율
+  const dx = fx>0.52 ? -1 : 1;                       // 오른쪽이면 왼쪽으로 펼침
+  const dy = fy>0.70 ? -1 : (fy<0.16 ? 1 : 0);       // 위·아래 잘림 방지
+  o.dir=[dx,dy];
+  o.lg.classList.add("peek");
+  gPins.appendChild(o.lg);                           // 다른 핀에 가리지 않게 맨 위로
+  relayout();
+}
+
+/* 라벨 글자 폭을 1em 기준으로 실측해 캐시 */
+function measureLabels(){
+  for(const n in PIN){
+    const o=PIN[n];
+    o.txt.setAttribute("font-size",100);
+    let w=0; try{ w=o.txt.getBBox().width; }catch(_){}
+    o.emw = w ? w/100 : (o.txt.textContent.length*0.72);
+  }
 }
 
 /* 화면 픽셀 기준 크기 유지 */
@@ -337,27 +367,35 @@ function relayout(){
   const r=svg.getBoundingClientRect(); if(!r.width) return;
   const k=VB.w/r.width;
   const narrow=r.width<861;
+  LBLHIDDEN = narrow && VB.w > BASE.w*0.38;      // 충분히 확대해야 이름표 자동 표시
+  if(!LBLHIDDEN && PEEK) clearPeek();
+  gPins.classList.toggle("nolbl", LBLHIDDEN);
   const PR = narrow ? (VB.w<BASE.w*0.55 ? 12 : 8.4) : 12.5;
   for(const n in PIN){
-    const o=PIN[n], p=o.p, [dx,dy]=LBL[p.n];
+    const o=PIN[n], p=o.p, [dx,dy]=o.dir||LBL[p.n];
     o.dot.setAttribute("r", PR*k);
+    o.hit.setAttribute("r", Math.max(PR*2.0,15)*k);
     o.num.setAttribute("font-size", (PR*0.92)*k);
-    const w=(o.tw*12.4+15)*k, h=21*k;
-    const ox=(dx===0?0:dx*21*k), oy=dy*(dx===0?25:17)*k;
+    const big = o.lg.classList.contains("peek");
+    const FS = big ? 15.5 : 12.6, PADX = big ? 10 : 7.5, HH = big ? 26 : 21;
+    const w=(o.emw*FS+PADX*2)*k, h=HH*k;
+    const OX = big?27:21, OY = big?(dx===0?36:31):(dx===0?25:17);
+    const ox=(dx===0?0:dx*OX*k), oy=dy*OY*k;
     const bx=p.mx+ox-(dx>0?0:(dx<0?w:w/2)), by=p.my+oy-h/2;
     const L=Math.hypot(ox,oy)||1;
     o.line.setAttribute("x1",p.mx+ox/L*PR*k); o.line.setAttribute("y1",p.my+oy/L*PR*k);
     o.line.setAttribute("x2",p.mx+ox); o.line.setAttribute("y2",p.my+oy);
     o.rect.setAttribute("x",bx); o.rect.setAttribute("y",by);
     o.rect.setAttribute("width",w); o.rect.setAttribute("height",h);
-    o.rect.setAttribute("rx",4*k);
-    o.txt.setAttribute("x",bx+7.5*k); o.txt.setAttribute("y",by+h/2);
-    o.txt.setAttribute("font-size",12.6*k);
+    o.rect.setAttribute("rx",(big?6:4)*k);
+    o.txt.setAttribute("x",bx+PADX*k); o.txt.setAttribute("y",by+h/2);
+    o.txt.setAttribute("font-size",FS*k);
   }
   for(const a of arrows) a.e.setAttribute("transform",`translate(${a.mx},${a.my}) rotate(${a.ang}) scale(${k})`);
-  gPins.classList.toggle("nolbl", narrow);
 }
 function applyVB(){svg.setAttribute("viewBox",`${VB.x} ${VB.y} ${VB.w} ${VB.h}`);relayout();}
+
+measureLabels();
 
 /* 방문지 범위에 맞춰 초기 화면 */
 const BB=(()=>{const xs=P.map(p=>p.mx),ys=P.map(p=>p.my);
@@ -378,11 +416,11 @@ function zoom(f,cx,cy){
   const r=svg.getBoundingClientRect();
   cx = cx==null ? VB.x+VB.w/2 : VB.x + (cx-r.left)/r.width*VB.w;
   cy = cy==null ? VB.y+VB.h/2 : VB.y + (cy-r.top)/r.height*VB.h;
-  const nw=Math.min(BASE.w*1.8,Math.max(BASE.w/10,VB.w/f)), s=nw/VB.w;
+  const nw=Math.min(BASE.w*1.8,Math.max(BASE.w/7,VB.w/f)), s=nw/VB.w;
   VB={x:cx-(cx-VB.x)*s, y:cy-(cy-VB.y)*s, w:nw, h:VB.h*s}; applyVB();
 }
-document.getElementById("zin").onclick =()=>zoom(1.6);
-document.getElementById("zout").onclick=()=>zoom(1/1.6);
+document.getElementById("zin").onclick =()=>zoom(1.5);
+document.getElementById("zout").onclick=()=>zoom(1/1.5);
 document.getElementById("zrst").onclick=()=>fit();
 const wrap=document.getElementById("mapwrap");
 wrap.addEventListener("wheel",e=>{e.preventDefault();zoom(e.deltaY<0?1.16:1/1.16,e.clientX,e.clientY)},{passive:false});
@@ -403,8 +441,11 @@ wrap.addEventListener("pointermove",e=>{
 });
 function endDrag(e){
   if(!dg)return;
-  if(dg.moved<6 && dg.n) openPlace(dg.n);
-  dg=null;
+  const n=dg.n, moved=dg.moved; dg=null;
+  if(moved>=6) return;
+  if(!n){ clearPeek(); return; }                  // 빈 지도를 누르면 이름 닫기
+  if(LBLHIDDEN && PEEK!==n){ setPeek(n); return; } // 1차 - 도시 이름만
+  openPlace(n);                                    // 2차 - 해설 열기
 }
 wrap.addEventListener("pointerup",endDrag);
 wrap.addEventListener("pointercancel",()=>dg=null);
@@ -456,6 +497,7 @@ const fmt=s=>esc(s)
 function openPlace(n){
   const p=P.find(x=>x.n===n); if(!p)return;
   cur=n;
+  clearPeek();
   for(const k in PIN) PIN[k].g.classList.toggle("sel", +k===n);
   chips.querySelectorAll("button").forEach(b=>b.classList.toggle("sel",+b.dataset.n===n));
   const cb=chips.querySelector(`button[data-n="${n}"]`); if(cb) cb.scrollIntoView({inline:"center",block:"nearest",behavior:"smooth"});
@@ -552,7 +594,9 @@ function openAbout(){
     </div></div>
     <div class="sec">쓰는 법</div>
     <div class="ex"><div class="exb">
-      <p>· <b>지도</b> — 번호 핀을 누르면 해설이 열립니다. 손가락 두 개로 확대·축소, 끌어서 이동. 휴대폰에서는 아래쪽 도시 이름 띠로도 이동할 수 있습니다.</p>
+      <p>· <b>지도 (휴대폰)</b> — 번호를 <b>한 번</b> 누르면 도시 이름이 뜨고, <b>한 번 더</b> 누르면 해설이 열립니다. 손가락 두 개로 <b>확대하면 이름이 모두 나타나고</b>, 그때는 한 번만 눌러도 바로 열립니다.</p>
+      <p>· <b>아래쪽 도시 이름 띠</b> — 어디로 갈지 이미 아실 때는 여기서 한 번에 갑니다.</p>
+      <p>· <b>지도 (PC)</b> — 이름표가 늘 보이고, 눌면 오른쪽에 해설이 열립니다.</p>
       <p>· <b>▶ 버튼</b> — 1번부터 16번까지 이동 경로를 순서대로 그려 줍니다.</p>
       <p>· <b>연표</b> — 16개 도시의 사건을 시간 순서로 모아 봅니다.</p>
       <p>· <b>인물</b> — 루터·츠빙글리·칼빈·후스처럼 방문지와 얽힌 사람들로 찾아갑니다.</p>
